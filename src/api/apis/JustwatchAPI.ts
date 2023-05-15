@@ -5,6 +5,7 @@ import { MediaType } from '../../utils/MediaType';
 import { JustWatchLocale } from '../../utils/JustWatchLocale';
 import { SeriesModel } from 'src/models/SeriesModel';
 import { MovieModel } from 'src/models/MovieModel';
+import { requestUrl } from 'obsidian';
 
 interface JustWatchData {
 	page: number;
@@ -71,11 +72,16 @@ export class JustwatchAPI extends APIModel {
 		this.types = [MediaType.Movie, MediaType.Series];
 	}
 	async searchByTitle(title: string): Promise<MediaTypeModel[]> {
-		const searchUrl = `https://apis.justwatch.com/content/titles/${JustWatchLocale}/popular?body=${encodeURIComponent("{ query : "+ title + " ")}`;
-		const fetchData = await fetch(searchUrl);
-		
-		const data = await fetchData.json();
-		
+		const body = {
+			query: title,
+		};
+		const searchUrl = `https://apis.justwatch.com/content/titles/${this.locale}/popular?body=${encodeURIComponent(JSON.stringify({ query: title }))}`;
+
+		//Cannot use fetch() due to CORS policy.
+		//const fetchData = await fetch(searchUrl);
+		const response = await requestUrl(searchUrl);
+		const data = response.json;
+		console.log(data);
 		if (data.Response === 'False') {
 			if (data.Error === 'Movie not found!') {
 				return [];
@@ -83,14 +89,14 @@ export class JustwatchAPI extends APIModel {
 
 			throw Error(`MDB | Received error from ${this.apiName}: \n${JSON.stringify(data, undefined, 4)}`);
 		}
-		if (!data.Search) {
-			return [];
+		if (response.status === 400) {
+			throw Error(`MDB | Fetch data for ${this.apiName} failed.`);
 		}
-		
-		const JustwatchResponse: JustWatchData = data;
+
+		const justwatchResponse: JustWatchData = data;
 		const ret: MediaTypeModel[] = [];
-		JustwatchResponse.items.forEach((item) => {
-			if (item.object_type == 'movie'){
+		justwatchResponse.items.forEach(item => {
+			if (item.object_type == 'movie') {
 				ret.push(
 					new MovieModel({
 						type: item.object_type,
@@ -98,11 +104,10 @@ export class JustwatchAPI extends APIModel {
 						englishTitle: item.title,
 						year: item.original_release_year.toString(),
 						dataSource: this.apiName,
-						id: item.jw_entity_id,
+						id: item.id.toString(),
 					} as MovieModel)
 				);
-			}
-			else if (item.object_type == 'show'){
+			} else if (item.object_type == 'show') {
 				ret.push(
 					new SeriesModel({
 						type: item.object_type,
@@ -110,16 +115,69 @@ export class JustwatchAPI extends APIModel {
 						englishTitle: item.title,
 						year: item.original_release_year.toString(),
 						dataSource: this.apiName,
-						id: item.jw_entity_id,
+						id: item.id.toString(),
 					} as SeriesModel)
 				);
 			}
-		})
-		
+		});
+
 		return ret;
 	}
-	getById(id: string): Promise<MediaTypeModel> {
-		throw new Error('Method not implemented.');
+
+	/**
+	 * Using JustWatches id (example: ts2077), identify if it is a show or movie then query the api.
+	 * @param jw_id JustWatches specific id which identifies if it is a show or movie.
+	 * @returns A detailed Modal
+	 */
+	async getById(jw_id: string): Promise<MediaTypeModel> {
+		let type = '';
+		let id = '';
+
+		if (jw_id.startsWith('ts')) {
+			type = 'show';
+			id = jw_id.substring(2);
+		} else if (jw_id.startsWith('tm')) {
+			type = 'movie';
+			id = jw_id.substring(2);
+		} else {
+			if (type === undefined) {
+				throw Error(`MDB | Type not found for ${this.apiName} with id of ${jw_id}.`);
+			}
+		}
+
+		const searchUrl = `https://apis.justwatch.com/content/titles/${type}/${id}/locale/en_AU`;
+
+		const response = await requestUrl(searchUrl);
+		const data = response.json;
+		console.log(data);
+		if (response.status === 400) {
+			throw Error(`MDB | Fetch data for ${this.apiName} failed.`);
+		}
+
+		const justwatchResponse: JustWatchData = data;
+		justwatchResponse.items.forEach(item => {
+			if (item.object_type == 'movie') {
+				const model = new MovieModel({
+					type: item.object_type,
+					title: item.title,
+					englishTitle: item.title,
+					year: item.original_release_year.toString(),
+					dataSource: this.apiName,
+					id: item.id.toString(),
+				} as MovieModel);
+				return model;
+			} else if (item.object_type == 'show') {
+				const model = new SeriesModel({
+					type: item.object_type,
+					title: item.title,
+					englishTitle: item.title,
+					year: item.original_release_year.toString(),
+					dataSource: this.apiName,
+					id: item.id.toString(),
+				} as SeriesModel);
+				return model;
+			}
+		});
+		return;
 	}
-	
 }

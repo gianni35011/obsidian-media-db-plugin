@@ -15,6 +15,7 @@ import { YAMLConverter } from './utils/YAMLConverter';
 import { MediaDbFolderImportModal } from './modals/MediaDbFolderImportModal';
 import { PropertyMapping, PropertyMappingModel } from './settings/PropertyMapping';
 import { ModalHelper, ModalResultCode, SearchModalOptions } from './utils/ModalHelper';
+import { JustwatchAPI } from './api/apis/JustwatchAPI';
 
 export default class MediaDbPlugin extends Plugin {
 	settings: MediaDbPluginSettings;
@@ -34,6 +35,7 @@ export default class MediaDbPlugin extends Plugin {
 		this.apiManager.registerAPI(new MusicBrainzAPI(this));
 		this.apiManager.registerAPI(new SteamAPI(this));
 		this.apiManager.registerAPI(new BoardGameGeekAPI(this));
+		this.apiManager.registerAPI(new JustwatchAPI(this));
 		// this.apiManager.registerAPI(new LocGovAPI(this)); // TODO: parse data
 
 		this.mediaTypeManager = new MediaTypeManager();
