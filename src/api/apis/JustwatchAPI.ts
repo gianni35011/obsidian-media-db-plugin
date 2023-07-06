@@ -3,6 +3,7 @@ import { MediaTypeModel } from '../../models/MediaTypeModel';
 import MediaDbPlugin from '../../main';
 import { MediaType } from '../../utils/MediaType';
 import { JustWatchLocale } from '../../utils/JustWatchLocale';
+import { JustWatchShortname } from '../../utils/JustWatchShortName';
 import { SeriesModel } from 'src/models/SeriesModel';
 import { MovieModel } from 'src/models/MovieModel';
 import { requestUrl } from 'obsidian';
@@ -81,7 +82,7 @@ export class JustwatchAPI extends APIModel {
 		//const fetchData = await fetch(searchUrl);
 		const response = await requestUrl(searchUrl);
 		const data = response.json;
-		console.log(data);
+
 		if (data.Response === 'False') {
 			if (data.Error === 'Movie not found!') {
 				return [];
@@ -104,7 +105,7 @@ export class JustwatchAPI extends APIModel {
 						englishTitle: item.title,
 						year: item.original_release_year.toString(),
 						dataSource: this.apiName,
-						id: item.id.toString(),
+						id: item.jw_entity_id,
 					} as MovieModel)
 				);
 			} else if (item.object_type == 'show') {
@@ -115,13 +116,18 @@ export class JustwatchAPI extends APIModel {
 						englishTitle: item.title,
 						year: item.original_release_year.toString(),
 						dataSource: this.apiName,
-						id: item.id.toString(),
+						id: item.jw_entity_id,
 					} as SeriesModel)
 				);
 			}
 		});
 
 		return ret;
+	}
+
+	getStreamingServices(data: JustWatchData){
+
+		return;
 	}
 
 	/**
@@ -132,6 +138,7 @@ export class JustwatchAPI extends APIModel {
 	async getById(jw_id: string): Promise<MediaTypeModel> {
 		let type = '';
 		let id = '';
+		console.log('Getting with ID');
 
 		if (jw_id.startsWith('ts')) {
 			type = 'show';
@@ -140,10 +147,10 @@ export class JustwatchAPI extends APIModel {
 			type = 'movie';
 			id = jw_id.substring(2);
 		} else {
-			if (type === undefined) {
-				throw Error(`MDB | Type not found for ${this.apiName} with id of ${jw_id}.`);
-			}
+			throw Error(`MDB | Type not found for ${this.apiName} with id of ${jw_id}.`);
 		}
+		console.log(id);
+		console.log(type);
 
 		const searchUrl = `https://apis.justwatch.com/content/titles/${type}/${id}/locale/en_AU`;
 
@@ -154,30 +161,29 @@ export class JustwatchAPI extends APIModel {
 			throw Error(`MDB | Fetch data for ${this.apiName} failed.`);
 		}
 
-		const justwatchResponse: JustWatchData = data;
-		justwatchResponse.items.forEach(item => {
-			if (item.object_type == 'movie') {
-				const model = new MovieModel({
-					type: item.object_type,
-					title: item.title,
-					englishTitle: item.title,
-					year: item.original_release_year.toString(),
-					dataSource: this.apiName,
-					id: item.id.toString(),
-				} as MovieModel);
-				return model;
-			} else if (item.object_type == 'show') {
-				const model = new SeriesModel({
-					type: item.object_type,
-					title: item.title,
-					englishTitle: item.title,
-					year: item.original_release_year.toString(),
-					dataSource: this.apiName,
-					id: item.id.toString(),
-				} as SeriesModel);
-				return model;
-			}
-		});
+		const justwatchResponse: any = data;
+
+		if (type == 'movie') {
+			const model = new MovieModel({
+				type: type,
+				title: justwatchResponse.title,
+				englishTitle: justwatchResponse.title,
+				year: justwatchResponse.original_release_year.toString(),
+				dataSource: this.apiName,
+				id: justwatchResponse.id.toString(),
+			} as MovieModel);
+			return model;
+		} else if (type == 'show') {
+			const model = new SeriesModel({
+				type: type,
+				title: justwatchResponse.title,
+				englishTitle: justwatchResponse.title,
+				year: justwatchResponse.original_release_year.toString(),
+				dataSource: this.apiName,
+				id: justwatchResponse.id.toString(),
+			} as SeriesModel);
+			return model;
+		}
 		return;
 	}
 }
